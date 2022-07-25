@@ -1,0 +1,16 @@
+{
+  "worldsubtitle": {
+    "link": "https://worldsubtitle.me/?s={q}",
+    "search_scraper": ["div", { "class": "cat-post-titel" }],
+    "children": ["h2", "a"],
+    "download_link_element": [
+      ["div", { "class": "new-link-3" }, ["ul", { "class": "download1" }]]
+    ]
+  },
+  "subtitlestar": {
+    "link": "http://subtitlestar.com/?s={q}&post_type=post",
+    "search_scraper": ["div", { "class": "wapper-posts" }],
+    "children": ["footer", "div", "a"],
+    "download_link_element": [["a", { "id": "link-download" }]]
+  }
+}

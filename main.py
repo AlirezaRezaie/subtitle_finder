@@ -9,6 +9,8 @@ from pick import pick
 import asyncio
 import aiohttp
 import re
+import json
+import time
 
 def attribute_selector(children,class_):
     holder = class_
@@ -21,24 +23,22 @@ SUBTITLE_LINKS = []
 THREADS = []
 
 # subtitle websites support
-website_info = {
-        'worldsubtitle':{
-            'link':"https://worldsubtitle.me/?s={q}",
-            'search_scraper':["div", {"class": "cat-post-titel"}],
-            'children':['h2','a'],
-            'download_link_element':[["div", {"class": "new-link-3"},["ul",{"class","download1"}]]]
-            
-        },
-        'subtitlestar':{
-            'link':"http://subtitlestar.com/?s={q}&post_type=post",
-            'search_scraper':["div", {"class": "wapper-posts"}],
-            'children':['footer','div','a'],
-            'download_link_element':[["a", {"id": "link-download"}]]
-        }
-    }
+f = open('supportedwebsites.json')
+website_info = json.load(f)
+f.close()
 
 # a lambda function for bs4 abstraction (no use for now)
-get_content = lambda link : BeautifulSoup(requests.get(link).content, 'html.parser')
+def get_content(link):
+    error_count = 0
+    for _ in range(0,100):
+        time.sleep(1)
+        try:
+            return BeautifulSoup(requests.get(link).content, 'html.parser')
+        except:
+            error_count += 1
+            print ("\rretrying " + str(error_count) , end='')
+    exit()
+            
 
 """  
 this function reads the .zip file 
@@ -74,20 +74,23 @@ args = parser.parse_args()
 async def get_subtitle_link(page_links,subtitle_name):
     async with aiohttp.ClientSession() as session:
         for link in page_links:
-            async with session.get(link) as response:
-                resp =  await response.read()
-                link_wrapper = BeautifulSoup(
-                        resp.decode('utf-8'), 'html5lib'
-                )
-                
-                for pattern in website_info[website_name]['download_link_element']:
-                    download_btn = link_wrapper.find(*pattern)
-                    try:
-                        url = re.search(r'href=["\']?([^"\'>]+)["\']?',download_btn.decode()).groups()
-                        SUBTITLE_LINKS.append(url[0]+f" (subtitle for {subtitle_name})")
-                    except:
-                        pass
-
+            try:
+                async with session.get(link) as response:
+                    resp =  await response.read()
+                    link_wrapper = BeautifulSoup(
+                            resp.decode('utf-8'), 'html5lib'
+                    )
+                    
+                    for pattern in website_info[website_name]['download_link_element']:
+                        download_btn = link_wrapper.find(*pattern)
+                        try:
+                            url = re.search(r'href=["\']?([^"\'>]+)["\']?',download_btn.decode()).groups()
+                            SUBTITLE_LINKS.append(url[0]+f" (subtitle for {subtitle_name})")
+                            break
+                        except:
+                            pass
+            except aiohttp.ClientConnectionError as e:
+                print("connection error")
 # searching the supported websites for the subtitle links
 def search_subtitle(name):
     soup = get_content(website_info[website_name]['link'].format(q = name))
