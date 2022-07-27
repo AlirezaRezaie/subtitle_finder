@@ -60,13 +60,15 @@ class Worker(QThread):
                     async with session.get(link) as response:
                         resp =  await response.read()
                         link_wrapper = BeautifulSoup(
-                                resp.decode('utf-8'), 'html5lib'
+                            resp.decode('utf-8'),
+                            'html5lib'
                         )
                         for pattern in self.website_info[self.website_name]['download_link_element']:
                             download_btn = link_wrapper.find(*pattern)
                             try:
                                 url = re.search(r'href=["\']?([^"\'>]+)["\']?',download_btn.decode()).groups()
                                 self.SUBTITLE_LINKS.append(url[0]+f" (subtitle for {subtitle_name})")
+                                # break if the pattern is true because no error
                                 break
                             except:
                                 pass
@@ -90,6 +92,7 @@ class Worker(QThread):
                         # and passing the query to it
                         self.website_info[self.website_name]['link'].format(q = self.name)
                    ).content, 'html.parser')
+                   # break the retry loop if no error
                    break
             except:
                 # increasing the error count and emmiting the error counter
@@ -135,7 +138,6 @@ class Ui(QtWidgets.QMainWindow):
 
     def start(self):
         names_list = self.input.text()
-
         # start a worker for each subtitle name
         for name in names_list.split():
             self.THREADS.append(Worker(name,))
