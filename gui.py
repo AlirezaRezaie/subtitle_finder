@@ -135,19 +135,24 @@ class Ui(QtWidgets.QMainWindow):
 
     def start(self):
         names_list = self.input.text()
+
+        # start a worker for each subtitle name
         for name in names_list.split():
             self.THREADS.append(Worker(name,))
+        # start all threads
+        for t in self.THREADS:
+            t.start()
+        # connect signals to their handler
+        for t in self.THREADS:
+            t.response.connect(lambda sub_links : self.SUBTITLE_LINKS_ALL.append(sub_links))
+            t.error_msg.connect(self.error_handler)
 
-        for i in self.THREADS:
-            i.start()
-
-        self.a = Waitor(self.THREADS)
-        self.a.start()
+        # defining waitor thread and starting it
+        self.queue = Waitor(self.THREADS)
+        self.queue.start()
         self.button.setEnabled(False)
-        for i in self.THREADS:
-            i.response.connect(lambda sub_links : self.SUBTITLE_LINKS_ALL.append(sub_links))
-            i.error_msg.connect(self.error_handler)
-        self.a.finished.connect(self.handle_on_threads_end)
+        # if waitor ends it means all threads ended
+        self.queue.finished.connect(self.handle_on_threads_end)
         
 
 app = QtWidgets.QApplication(sys.argv)
