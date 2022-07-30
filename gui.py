@@ -9,20 +9,9 @@ import aiohttp
 import re
 import json
 import time
-
-
-# goes through nested elements as a list
-# and returns the last one [child1, child2, child3]
-#<child1>
-#   <child2> 
-#       </child3> <== selects this
-#   </child2>
-#</child1>
-def attribute_selector(children,class_):
-    holder = class_
-    for child in children:
-        holder = getattr(class_,child)
-    return holder
+from lxml import etree
+from urllib.parse import urlparse
+from shared_functions import *
 
 
 # a wait thread for making sure 
@@ -43,38 +32,45 @@ class Worker(QThread):
     response = pyqtSignal(list)
     # this signal will be emmited whenever an error accoured
     error_msg = pyqtSignal(str)
+    # live subtitle emitter
+    live_data = pyqtSignal(str)
     def __init__(self, sub_name):
         super().__init__()
         self.SUBTITLE_LINKS = []
-        self.website_name = "subtitlestar"
+        self.website_name = "sub2fm"
         self.name = sub_name
         # reading and loading the supported websites
         f = open('supportedwebsites.json')
         self.website_info = json.load(f)
         f.close()
+        self.website_object = self.website_info[self.website_name]
 
-    async def get_subtitle_link(self, page_links,subtitle_name):
+
+    async def get_subtitle_link(self,page_links,subtitle_name):
         async with aiohttp.ClientSession() as session:
             for link in page_links:
-                try:
-                    async with session.get(link) as response:
-                        resp =  await response.read()
-                        link_wrapper = BeautifulSoup(
-                            resp.decode('utf-8'),
-                            'html5lib'
-                        )
-                        for pattern in self.website_info[self.website_name]['download_link_element']:
-                            download_btn = link_wrapper.find(*pattern)
-                            try:
-                                url = re.search(r'href=["\']?([^"\'>]+)["\']?',download_btn.decode()).groups()
-                                self.SUBTITLE_LINKS.append(url[0]+f" (subtitle for {subtitle_name})")
-                                # break if the pattern is true because no error
-                                break
-                            except:
-                                pass
+                nested_links_holder = [link]
+                for xpaths in self.website_object['download_link_xpaths']:
+                    try:                
+                        for index,xpath in enumerate(xpaths):   
+                            for link in nested_links_holder:
+                                async with session.get(link) as response: 
+                                    resp =  await response.read()
+                                    link_wrapper = BeautifulSoup(
+                                            resp.decode('utf-8'), 'html5lib'
+                                    )
+                                    download_btns = get_elem_by_xpath(xpath,link_wrapper)
+                                    nested_links_holder = map(lambda x:is_absolute(x,self.website_object['link']),download_btns)
+                                    nested_links_holder = list(nested_links_holder)
 
-                except aiohttp.ClientConnectionError as e:
-                    print(f"connection error {e}")
+                                    if index+1 == len(xpaths):
+                                        for download_link in nested_links_holder:
+                                            # live data
+                                            self.live_data.emit(f"{download_link,link}")
+                                            self.SUBTITLE_LINKS.append(download_link+f" (subtitle for {link})")
+                        break
+                    except Exception as e:
+                        print(e)
 
     def run(self):
         print("started")
@@ -90,7 +86,7 @@ class Worker(QThread):
                     requests.get(
                         # reading the website's scraper string form database 
                         # and passing the query to it
-                        self.website_info[self.website_name]['link'].format(q = self.name)
+                        self.website_info[self.website_name]['search_link'].format(q = self.name)
                    ).content, 'html.parser')
                    # break the retry loop if no error
                    break
@@ -100,15 +96,19 @@ class Worker(QThread):
                 error_count += 1
                 msg = "\rretrying " + str(error_count)
                 self.error_msg.emit(msg)
-        
+
         # check if limit has reached and end the search because there is no connection
         if not error_count == max_error_count:
             self.error_msg.emit("ok")
-            elems = soup.find_all(*self.website_info[self.website_name]['search_scraper'])
-            links = [attribute_selector(self.website_info[self.website_name]['children'],elem)['href'] for elem in elems]
-            asyncio.run(self.get_subtitle_link(links,self.name))
-            self.response.emit(self.SUBTITLE_LINKS)
-            self.SUBTITLE_LINKS.clear()
+            links = get_elem_by_xpath(self.website_object['post_link_xpaths'],soup)
+            if not links == []:
+                links = map(lambda x:is_absolute(x,self.website_object['link']),links)
+                asyncio.run(self.get_subtitle_link(list(links),self.name))
+                self.response.emit(self.SUBTITLE_LINKS)
+                self.SUBTITLE_LINKS.clear()
+            else:
+                pass
+
         else:
             self.error_msg.emit("please retry")
 
@@ -126,6 +126,9 @@ class Ui(QtWidgets.QMainWindow):
         self.input = self.findChild(QtWidgets.QLineEdit, 'Input')
         self.show()
     
+    def handle_on_live_data(self, data):
+        print(data)
+
     def handle_on_threads_end(self):
         self.input.setText('')
         self.button.setEnabled(True)
@@ -133,7 +136,10 @@ class Ui(QtWidgets.QMainWindow):
         self.SUBTITLE_LINKS_ALL.clear()
         self.THREADS.clear()
 
-    def error_handler(self,err_msg):
+    def handle_on_subtitles_recieved(self,subtitles):
+        self.SUBTITLE_LINKS_ALL.append(subtitles)
+
+    def handle_on_error(self,err_msg):
         print(err_msg,end='')        
 
     def start(self):
@@ -146,8 +152,9 @@ class Ui(QtWidgets.QMainWindow):
             t.start()
         # connect signals to their handler
         for t in self.THREADS:
-            t.response.connect(lambda sub_links : self.SUBTITLE_LINKS_ALL.append(sub_links))
-            t.error_msg.connect(self.error_handler)
+            t.response.connect(self.handle_on_subtitles_recieved)
+            t.error_msg.connect(self.handle_on_error)
+            t.live_data.connect(self.handle_on_live_data)
 
         # defining waitor thread and starting it
         self.queue = Waitor(self.THREADS)

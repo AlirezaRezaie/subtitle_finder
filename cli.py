@@ -8,15 +8,11 @@ import argparse
 from pick import pick
 import asyncio
 import aiohttp
-import re
 import json
 import time
-
-def attribute_selector(children,class_):
-    holder = class_
-    for child in children:
-        holder = getattr(class_,child)
-    return holder
+from lxml import etree
+from urllib.parse import urlparse
+from shared_functions import *
 
 # important variables
 SUBTITLE_LINKS = []
@@ -74,37 +70,48 @@ args = parser.parse_args()
 async def get_subtitle_link(page_links,subtitle_name):
     async with aiohttp.ClientSession() as session:
         for link in page_links:
-            try:
-                async with session.get(link) as response:
-                    resp =  await response.read()
-                    link_wrapper = BeautifulSoup(
-                            resp.decode('utf-8'), 'html5lib'
-                    )
-                    
-                    for pattern in website_info[website_name]['download_link_element']:
-                        download_btn = link_wrapper.find(*pattern)
-                        try:
-                            url = re.search(r'href=["\']?([^"\'>]+)["\']?',download_btn.decode()).groups()
-                            SUBTITLE_LINKS.append(url[0]+f" (subtitle for {subtitle_name})")
-                            break
-                        except:
-                            pass
-            except aiohttp.ClientConnectionError as e:
-                print("connection error")
+            nested_links_holder = [link]
+            for xpaths in website_object['download_link_xpaths']:
+                try:                
+                    for index,xpath in enumerate(xpaths):   
+                        for link in nested_links_holder:
+                            async with session.get(link) as response: 
+                                resp =  await response.read()
+                                link_wrapper = BeautifulSoup(
+                                        resp.decode('utf-8'), 'html5lib'
+                                )
+                                download_btns = get_elem_by_xpath(xpath,link_wrapper)
+                                nested_links_holder = map(lambda x:is_absolute(x,website_object['link']),download_btns)
+                                nested_links_holder = list(nested_links_holder)
+
+                                if index+1 == len(xpaths):
+                                    for download_link in nested_links_holder:
+                                        # live data
+                                        print(download_link,link)
+                                        SUBTITLE_LINKS.append(download_link+f" (subtitle for {link})")
+                    break
+                except Exception as e:
+                    print(e)
 # searching the supported websites for the subtitle links
 def search_subtitle(name):
-    soup = get_content(website_info[website_name]['link'].format(q = name))
-    elems = soup.find_all(*website_info[website_name]['search_scraper'])
-    links = [attribute_selector(website_info[website_name]['children'],elem)['href'] for elem in elems]
-    asyncio.run(get_subtitle_link(links,name))
+    soup = get_content(website_object['search_link'].format(q = name))
+    links = get_elem_by_xpath(website_object['post_link_xpaths'],soup)
+    if not links == []:
+        links = map(lambda x:is_absolute(x,website_object['link']),links)
+        asyncio.run(get_subtitle_link(list(links),name))
+    else:
+        pass
+
 
 if __name__ == "__main__":
     global website_name
+    global website_object
+    
     if args.site != None:
         website_name = args.site[0]
     else:
         website_name='worldsubtitle'
-
+    website_object = website_info[website_name]
     # if there is a name argument run the program
     if args.name != None:
         search_query = args.name
@@ -121,8 +128,13 @@ if __name__ == "__main__":
         t.join()
     print('done!!!')
 
+    # removing duplicates in the list for some bugs may happened
+    SUBTITLE_LINKS = list(set(SUBTITLE_LINKS))
     # cool cli picking menu
     title = 'Please choose your subtitle: '
+    if SUBTITLE_LINKS == []:
+        print("no subtitle found")
+        exit()
     option= pick(SUBTITLE_LINKS + ['[quit]'], title, indicator='=>')
     if option == '[quit]':
         quit()

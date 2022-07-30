@@ -1,16 +1,31 @@
 {
   "worldsubtitle": {
-    "link": "https://worldsubtitle.me/?s={q}",
-    "search_scraper": ["div", { "class": "cat-post-titel" }],
-    "children": ["h2", "a"],
-    "download_link_element": [
-      ["div", { "class": "new-link-3" }, ["ul", { "class": "download1" }]]
+    "under_dev": false,
+    "link": "https://worldsubtitle.me",
+    "search_link": "https://worldsubtitle.me/?s={q}",
+    "post_link_xpaths": "//div[@class='cat-post-titel']/h2/a/@href",
+    "download_link_xpaths": [
+      ["//div[@class='new-link-3']/a/@href"],
+      ["//ul[@class='download1']/a/@href"]
     ]
   },
   "subtitlestar": {
-    "link": "http://subtitlestar.com/?s={q}&post_type=post",
-    "search_scraper": ["div", { "class": "wapper-posts" }],
-    "children": ["footer", "div", "a"],
-    "download_link_element": [["a", { "id": "link-download" }]]
+    "under_dev": false,
+    "link": "https://subtitlestar.com",
+    "search_link": "http://subtitlestar.com/?s={q}&post_type=post",
+    "post_link_xpaths": "//div[@class='wapper-posts']/footer/div/a/@href",
+    "download_link_xpaths": [["//a[@id='link-download']/@href"]]
+  },
+  "sub2fm": {
+    "under_dev": true,
+    "link": "https://subf2m.co",
+    "search_link": "https://subf2m.co/subtitles/searchbytitle?query={q}",
+    "post_link_xpaths": "//div[@class='search-result']/ul/li/div/a/@href",
+    "download_link_xpaths": [
+      [
+        "//a[@class='download icon-download']/@href",
+        "//a[@id='downloadButton']/@href"
+      ]
+    ]
   }
 }
