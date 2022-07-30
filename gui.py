@@ -37,7 +37,7 @@ class Worker(QThread):
     def __init__(self, sub_name):
         super().__init__()
         self.SUBTITLE_LINKS = []
-        self.website_name = "sub2fm"
+        self.website_name = "subtitlestar"
         self.name = sub_name
         # reading and loading the supported websites
         f = open('supportedwebsites.json')
