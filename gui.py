@@ -6,11 +6,8 @@ import requests
 from bs4 import BeautifulSoup
 import asyncio
 import aiohttp
-import re
 import json
 import time
-from lxml import etree
-from urllib.parse import urlparse
 from shared_functions import *
 
 

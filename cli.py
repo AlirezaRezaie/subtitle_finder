@@ -10,8 +10,6 @@ import asyncio
 import aiohttp
 import json
 import time
-from lxml import etree
-from urllib.parse import urlparse
 from shared_functions import *
 
 # important variables
