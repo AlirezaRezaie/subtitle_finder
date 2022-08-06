@@ -9,6 +9,7 @@ import aiohttp
 import json
 import time
 from shared_functions import *
+import database
 
 
 # a wait thread for making sure 
@@ -79,14 +80,14 @@ class Worker(QThread):
         for _ in range(0,max_error_count):
             time.sleep(1)
             try:
-                   soup =  BeautifulSoup(
-                    requests.get(
-                        # reading the website's scraper string form database 
-                        # and passing the query to it
-                        self.website_info[self.website_name]['search_link'].format(q = self.name)
-                   ).content, 'html.parser')
-                   # break the retry loop if no error
-                   break
+                soup =  BeautifulSoup(
+                requests.get(
+                    # reading the website's scraper string form database 
+                    # and passing the query to it
+                    self.website_info[self.website_name]['search_link'].format(q = self.name)
+                ).content, 'html.parser')
+                # break the retry loop if no error
+                break
             except:
                 # increasing the error count and emmiting the error counter
                 # to the UI for showing the error
@@ -117,6 +118,9 @@ class Ui(QtWidgets.QMainWindow):
         uic.loadUi('subtitle Project.ui', self)
         self.THREADS = []
         self.SUBTITLE_LINKS_ALL = []
+        self.database = database.Database()
+        #self.database.set_subtitle('wwwww','shamim')
+        #self.database.connection.close()
         self.menu = self.findChild(QtWidgets.QMenuBar,'menu')
         self.button = self.findChild(QtWidgets.QPushButton, 'pushButton')
         self.button.clicked.connect(self.start)
